@@ -47,7 +47,23 @@ export function Dashboard() {
     };
   }, [user, profile]);
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-yellow-500 w-10 h-10" /></div>;
+  if (loading) return (
+    <div className="space-y-8 animate-pulse">
+      <div className="space-y-4">
+        <div className="h-10 w-48 bg-white/10 rounded-xl"></div>
+        <div className="h-5 w-64 bg-white/10 rounded-xl"></div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[1,2,3].map(i => <div key={i} className="h-24 bg-white/10 rounded-3xl"></div>)}
+      </div>
+      <div className="flex gap-4">
+        {[1,2,3,4].map(i => <div key={i} className="h-10 w-24 bg-white/10 rounded-xl"></div>)}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {[1,2,3,4].map(i => <div key={i} className="h-32 bg-white/10 rounded-3xl"></div>)}
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-8">
@@ -138,6 +154,32 @@ export function Dashboard() {
               <RentalItem key={rental.id} rental={rental} role={profile?.role!} />
             ))}
             {rentals.length === 0 && <p className="text-center py-10 bg-[#141414] border border-white/5 rounded-3xl text-white/40">لا يوجد نشاط مسجل حتى الآن</p>}
+            
+            {profile?.role === 'renter' && (
+              <div className="mt-12 pt-8 border-t border-white/10">
+                <h3 className="text-xl font-bold text-white mb-6">إيجاراتي الحالية</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {rentals.filter(r => r.status === 'paid' || r.status === 'approved').map(rental => {
+                       const asset = assets.find(a => a.id === rental.assetId);
+                       return asset ? (
+                          <div key={rental.id} className="bg-[#141414] border border-white/10 p-4 rounded-3xl flex items-center gap-4 hover:border-white/20 transition-all">
+                             <img src={asset.imageUrl} className="w-16 h-16 rounded-xl object-cover grayscale opacity-80" />
+                             <div>
+                                <h4 className="font-bold text-white">{asset.name}</h4>
+                                <p className="text-xs text-white/50 mt-1">{format(new Date(rental.startDate), 'MMM d, yyyy')} إلى {format(new Date(rental.endDate), 'MMM d, yyyy')}</p>
+                             </div>
+                             <div className="mr-auto px-3 py-1 flex items-center bg-green-500/10 text-green-500 border border-green-500/20 rounded-xl text-xs font-bold">
+                                نشط
+                             </div>
+                          </div>
+                       ) : null;
+                   })}
+                   {rentals.filter(r => r.status === 'paid' || r.status === 'approved').length === 0 && (
+                      <p className="text-sm text-white/40 col-span-2">لا يوجد إيجارات نشطة حالياً</p>
+                   )}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -222,7 +264,14 @@ export function Dashboard() {
                             });
 
                             return (
-                               <div key={i} className={`flex-1 h-8 border-r border-white/5 mx-0.5 rounded ${isBooked ? 'bg-red-500/20 shadow-inner' : 'bg-green-500/5'}`} title={isBooked ? 'محجوز' : 'متاح'}></div>
+                               <div key={i} className={`flex-1 h-16 border-r border-white/5 mx-0.5 rounded flex flex-col justify-center items-center px-1 overflow-hidden relative group ${isBooked ? 'bg-[#1a1a1a] border border-white/10' : 'bg-green-500/5'}`} title={isBooked ? 'محجوز' : 'متاح'}>
+                                  {isBooked && (
+                                     <>
+                                        <div className="absolute inset-0 bg-yellow-500/10 z-0"></div>
+                                        <span className="text-[10px] text-yellow-500 font-bold z-10">محجوز</span>
+                                     </>
+                                  )}
+                               </div>
                             );
                          })}
                       </div>
@@ -336,6 +385,13 @@ function RentalItem({ rental, role, isDetail }: { rental: RentalRequest, role: s
     }
   };
 
+  const steps = ['pending', 'approved', 'paid', 'completed'];
+  const getStepIndex = (status: string) => {
+    if (status === 'rejected' || status === 'cancelled') return -1;
+    return steps.indexOf(status);
+  };
+  const currentIndex = getStepIndex(rental.status);
+
   return (
     <div className="bg-[#141414] p-6 rounded-3xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6 hover:bg-white/5 transition-all">
       <div className="flex items-center gap-6 w-full md:w-auto">
@@ -349,6 +405,20 @@ function RentalItem({ rental, role, isDetail }: { rental: RentalRequest, role: s
           </p>
         </div>
       </div>
+      
+      {currentIndex >= 0 && (
+         <div className="flex items-center w-full max-w-sm px-4 mx-auto hidden lg:flex flex-row-reverse">
+            {steps.map((step, idx) => (
+               <div key={step} className="flex flex-col items-center flex-1 relative h-10 justify-start">
+                  <div className={`w-3 h-3 rounded-full z-10 ${idx <= currentIndex ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'bg-white/20'}`}></div>
+                  {idx < steps.length - 1 && (
+                     <div className={`absolute top-1.5 right-1/2 left-[-50%] h-[2px] z-0 ${idx < currentIndex ? 'bg-yellow-500' : 'bg-white/10'}`}></div>
+                  )}
+                  <span className={`text-[10px] mt-2 ${idx <= currentIndex ? 'text-yellow-500 font-bold' : 'text-white/40'}`}>{statusMap[step].label}</span>
+               </div>
+            ))}
+         </div>
+      )}
 
       <div className="flex items-center gap-4 w-full md:w-auto justify-end">
         <div className={`px-4 py-2 rounded-xl text-sm font-bold ${s.color}`}>
@@ -431,6 +501,7 @@ function AssetForm({ onClose, asset }: { onClose: () => void, asset?: EquipmentA
   const [category, setCategory] = useState(asset?.category || 'heavy');
   const [dailyRate, setDailyRate] = useState(asset?.dailyRate?.toString() || '');
   const [location, setLocation] = useState(asset?.location || '');
+  const [imageUrl, setImageUrl] = useState(asset?.imageUrl || '');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: any) => {
@@ -453,7 +524,7 @@ function AssetForm({ onClose, asset }: { onClose: () => void, asset?: EquipmentA
       } else {
         await addDoc(collection(db, 'assets'), {
           ...data,
-          imageUrl: `https://picsum.photos/seed/${Math.random()}/800/600`,
+          imageUrl: imageUrl || `https://picsum.photos/seed/${Math.random()}/800/600`,
           createdAt: serverTimestamp()
         });
       }
@@ -505,6 +576,11 @@ function AssetForm({ onClose, asset }: { onClose: () => void, asset?: EquipmentA
                 <MapPin className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 w-5 h-5" />
                 <input required value={location} onChange={e => setLocation(e.target.value)} type="text" placeholder="الرياض، جدة، الشرقية..." className="w-full bg-[#141414] border border-white/10 text-white placeholder:text-white/20 rounded-2xl pr-12 pl-4 py-4 focus:outline-none focus:border-yellow-500" />
               </div>
+            </div>
+
+            <div className="space-y-2 col-span-2">
+              <label className="text-sm font-bold text-white/50">رابط صورة المعدة (اختياري)</label>
+              <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} type="url" placeholder="https://..." className="w-full bg-[#141414] border border-white/10 text-white placeholder:text-white/20 rounded-2xl px-4 py-4 focus:outline-none focus:border-yellow-500" />
             </div>
 
             <div className="space-y-2 col-span-2">

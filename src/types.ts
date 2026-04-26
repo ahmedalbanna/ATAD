@@ -7,6 +7,8 @@ export interface UserProfile {
   role: UserRole;
   phoneNumber?: string;
   photoUrl?: string;
+  equipmentCategories?: string[];
+  preferredLocation?: string;
   createdAt: any;
 }
 

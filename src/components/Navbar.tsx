@@ -5,7 +5,7 @@ import { signInWithPopup, signOut } from 'firebase/auth';
 import { useAuth } from '../App';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProfileSettings } from './ProfileSettings';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 
 interface NavbarProps {
   onNavigate: (page: 'home' | 'dashboard' | 'asset') => void;
@@ -19,6 +19,7 @@ export function Navbar({ onNavigate, currentPage }: NavbarProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifFilter, setNotifFilter] = useState('all');
 
   useEffect(() => {
      if (!user) return;
@@ -32,12 +33,20 @@ export function Navbar({ onNavigate, currentPage }: NavbarProps) {
 
   const markAllRead = async () => {
     if (!user) return;
+    const batch = writeBatch(db);
     notifications.filter(n => !n.read).forEach((n) => {
-       // Ideally batch this 
        const docRef = doc(db, 'notifications', n.id);
-       updateDoc(docRef, { read: true });
+       batch.update(docRef, { read: true });
     });
+    await batch.commit();
   };
+
+  const filteredNotifs = notifications.filter(n => {
+     if (notifFilter === 'unread') return !n.read;
+     if (notifFilter === 'rental_request') return n.type === 'rental_request';
+     if (notifFilter === 'system') return n.type === 'system';
+     return true;
+  });
 
   const login = () => signInWithPopup(auth, googleProvider);
   const logout = () => signOut(auth);
@@ -105,13 +114,18 @@ export function Navbar({ onNavigate, currentPage }: NavbarProps) {
                             </button>
                           )}
                         </div>
+                        <div className="bg-[#141414] border-b border-white/5 p-2 flex gap-2 overflow-x-auto">
+                           <button onClick={() => setNotifFilter('all')} className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${notifFilter === 'all' ? 'bg-yellow-500/10 text-yellow-500' : 'text-white/40 hover:text-white/60'}`}>الكل</button>
+                           <button onClick={() => setNotifFilter('unread')} className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${notifFilter === 'unread' ? 'bg-yellow-500/10 text-yellow-500' : 'text-white/40 hover:text-white/60'}`}>غير مقروءة</button>
+                           <button onClick={() => setNotifFilter('rental_request')} className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${notifFilter === 'rental_request' ? 'bg-yellow-500/10 text-yellow-500' : 'text-white/40 hover:text-white/60'}`}>الطلبات</button>
+                        </div>
                         <div className="max-h-96 overflow-y-auto">
-                          {notifications.length === 0 ? (
+                          {filteredNotifs.length === 0 ? (
                             <div className="p-6 text-center text-white/40 text-sm">
-                              لا توجد إشعارات حالياً
+                              لا توجد إشعارات تطابق عملية التصفية
                             </div>
                           ) : (
-                            notifications.map(notif => (
+                            filteredNotifs.map(notif => (
                               <div key={notif.id} className={`p-4 border-b border-white/5 hover:bg-white/5 transition-colors cursor-default ${!notif.read ? 'bg-yellow-500/5' : ''}`}>
                                 <h5 className={`text-sm ${!notif.read ? 'font-bold text-white' : 'font-medium text-white/70'}`}>{notif.title}</h5>
                                 <p className="text-xs text-white/50 mt-1">{notif.message}</p>

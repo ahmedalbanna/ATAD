@@ -18,12 +18,20 @@ export function Home({ onAssetClick }: HomeProps) {
   
   // Filters
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const [locationStr, setLocationStr] = useState('');
   const [minPrice, setMinPrice] = useState<number | ''>('');
   const [maxPrice, setMaxPrice] = useState<number | ''>('');
   const [sortBy, setSortBy] = useState<'relevance' | 'price_asc' | 'price_desc' | 'rating'>('relevance');
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -50,7 +58,7 @@ export function Home({ onAssetClick }: HomeProps) {
 
   const filteredAssets = useMemo(() => {
     let result = assets.filter(a => {
-      const matchSearch = a.name.toLowerCase().includes(search.toLowerCase()) || (a.description || '').toLowerCase().includes(search.toLowerCase());
+      const matchSearch = a.name.toLowerCase().includes(debouncedSearch.toLowerCase()) || (a.description || '').toLowerCase().includes(debouncedSearch.toLowerCase());
       const matchLoc = !locationStr || a.location.toLowerCase().includes(locationStr.toLowerCase());
       const matchCat = !category || a.category === category;
       const matchMin = minPrice === '' || a.dailyRate >= minPrice;
@@ -63,7 +71,7 @@ export function Home({ onAssetClick }: HomeProps) {
     else if (sortBy === 'rating') result.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0));
 
     return result;
-  }, [assets, search, locationStr, category, minPrice, maxPrice, sortBy]);
+  }, [assets, debouncedSearch, locationStr, category, minPrice, maxPrice, sortBy]);
 
   if (user && !profile) {
     return (
@@ -120,7 +128,7 @@ export function Home({ onAssetClick }: HomeProps) {
           <p className="text-lg text-white/50 leading-relaxed font-light">
             نوفر لك منصة متكاملة للبحث عن وتأجير كافة أنواع المعدات والآلات الثقيلة في جميع أنحاء المملكة.
           </p>
-          <div className="flex bg-[#141414] border border-white/10 rounded-2xl p-2 items-center w-full max-w-2xl focus-within:border-yellow-500/50 transition-colors">
+          <div className="flex bg-[#141414] border border-white/10 rounded-2xl p-2 items-center w-full max-w-2xl focus-within:border-yellow-500/50 transition-colors relative">
             <Search className="text-white/40 mr-3 shrink-0" />
             <input 
               type="text" 
@@ -143,6 +151,12 @@ export function Home({ onAssetClick }: HomeProps) {
             >
               <Filter className="w-5 h-5" />
             </button>
+            
+            {filteredAssets.length === 0 && search !== '' && (
+               <div className="absolute top-full left-0 right-0 mt-2 text-center text-red-500 text-sm bg-red-500/10 border border-red-500/20 py-3 rounded-xl backdrop-blur-md">
+                  لا توجد نتائج لـ "{search}"
+               </div>
+            )}
           </div>
           
           <AnimatePresence>

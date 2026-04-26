@@ -3,7 +3,7 @@ import { doc, getDoc, addDoc, collection, serverTimestamp, query, where, getDocs
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { EquipmentAsset, RentalRequest, UserProfile, Review } from '../types';
 import { useAuth } from '../App';
-import { ArrowRight, MapPin, Calendar, Shield, CreditCard, ChevronLeft, Loader2, CheckCircle2, User, MessageCircle, Star } from 'lucide-react';
+import { ArrowRight, MapPin, Calendar, Shield, CreditCard, ChevronLeft, Loader2, CheckCircle2, User, MessageCircle, Star, Share2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { notifyUser } from '../utils/notifications';
@@ -11,9 +11,10 @@ import { notifyUser } from '../utils/notifications';
 interface AssetDetailsProps {
   id: string;
   onBack: () => void;
+  onNavigate?: (page: 'home' | 'dashboard' | 'asset') => void;
 }
 
-export function AssetDetails({ id, onBack }: AssetDetailsProps) {
+export function AssetDetails({ id, onBack, onNavigate }: AssetDetailsProps) {
   const { user, profile } = useAuth();
   const [asset, setAsset] = useState<EquipmentAsset | null>(null);
   const [owner, setOwner] = useState<UserProfile | null>(null);
@@ -91,6 +92,14 @@ export function AssetDetails({ id, onBack }: AssetDetailsProps) {
     }
   };
 
+  const handleShare = async () => {
+    const shareText = `شاهد ${asset?.name} على منصة عتاد: ${window.location.href}`;
+    if (navigator.clipboard) {
+       await navigator.clipboard.writeText(shareText);
+       alert('تم نسخ الرابط بنجاح!');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -130,8 +139,13 @@ export function AssetDetails({ id, onBack }: AssetDetailsProps) {
           <div className="space-y-6">
             <div className="flex justify-between items-start">
               <div>
+              <div className="flex items-center gap-4">
                 <h1 className="text-4xl font-black text-white">{asset.name}</h1>
-                <div className="flex items-center text-white/40 mt-2 gap-2">
+                <button onClick={handleShare} className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/50 transition-colors shrink-0" title="مشاركة">
+                   <Share2 className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex items-center text-white/40 mt-2 gap-2">
                   <MapPin className="w-4 h-4" />
                   {asset.location}
                 </div>
@@ -182,10 +196,10 @@ export function AssetDetails({ id, onBack }: AssetDetailsProps) {
                         <h4 className="text-lg font-black text-yellow-500">{owner.displayName}</h4>
                      </div>
                   </div>
-                  <button onClick={() => alert('ميزة المحادثة ستتوفر قريباً')} className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-white flex items-center gap-2">
+                  <a href={`mailto:${owner.email}?subject=استفسار بخصوص معدة: ${asset.name}`} className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-white flex items-center gap-2">
                      <MessageCircle className="w-5 h-5" />
                      تواصل
-                  </button>
+                  </a>
                </div>
             )}
             
@@ -237,12 +251,20 @@ export function AssetDetails({ id, onBack }: AssetDetailsProps) {
                 </div>
                 <h4 className="text-xl font-bold text-white">تم إرسال طلبك بنجاح!</h4>
                 <p className="text-sm text-white/50">سيقوم صاحب المعدة بمراجعة طلبك والرد عليك قريباً.</p>
-                <button 
-                  onClick={() => onBack()}
-                  className="w-full py-4 text-black font-bold bg-yellow-500 rounded-xl hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10"
-                >
-                  العودة للرئيسية
-                </button>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => onNavigate && onNavigate('dashboard')}
+                    className="flex-1 py-4 text-black font-bold bg-yellow-500 rounded-xl hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10"
+                  >
+                    لوحة التحكم
+                  </button>
+                  <button 
+                    onClick={() => onBack()}
+                    className="flex-1 py-4 text-white font-bold bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                  >
+                    الرئيسية
+                  </button>
+                </div>
               </motion.div>
             ) : (
               <div className="space-y-6">
