@@ -1,0 +1,161 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // --- User Validation ---
+    function isValidUser(data) {
+      return data.uid == request.auth.uid 
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 256
+        && data.role in ['renter', 'lender', 'admin']
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100))
+        && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20))
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 1000));
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidUser(incoming()) && userId == request.auth.uid;
+      allow update: if isSignedIn() && userId == request.auth.uid && isValidUser(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phoneNumber', 'photoUrl', 'role']);
+    }
+
+    // --- Asset Validation ---
+    function isValidAsset(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.category is string && data.category.size() > 0
+        && data.dailyRate is number && data.dailyRate >= 0
+        && data.lenderId == request.auth.uid
+        && data.status in ['available', 'rented', 'maintenance']
+        && data.location is string
+        && (!('description' in data) || (data.description is string && data.description.size() <= 2000))
+        && (!('imageUrl' in data) || (data.imageUrl is string))
+        && (!('ratingCount' in data) || (data.ratingCount is number))
+        && (!('averageRating' in data) || (data.averageRating is number))
+        && (!('features' in data) || (data.features is list && data.features.size() <= 50));
+    }
+
+    match /assets/{assetId} {
+      allow read: if true; // Public catalog
+      allow create: if isSignedIn() && isEmailVerified() && isValidAsset(incoming()) && isValidId(assetId);
+      allow update: if isSignedIn() && isEmailVerified() && (
+        isAdmin() || (
+          existing().lenderId == request.auth.uid 
+          && isValidAsset(incoming())
+          && (
+            // Regular update
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'dailyRate', 'status', 'imageUrl', 'location', 'category', 'ratingCount', 'averageRating', 'features'])
+            // Status change only (e.g. implicitly during rental)
+            || incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+          )
+        )
+      );
+      allow delete: if isAdmin() || (isSignedIn() && existing().lenderId == request.auth.uid);
+    }
+
+    // --- Rental Request Validation ---
+    function isValidRental(data) {
+      return data.assetId is string && data.assetId.size() > 0
+        && data.renterId == request.auth.uid
+        && data.lenderId is string && data.lenderId.size() > 0
+        && data.totalPrice is number && data.totalPrice >= 0
+        && data.status in ['pending', 'approved', 'rejected', 'paid', 'completed', 'cancelled']
+        && data.startDate is string
+        && data.endDate is string;
+    }
+
+    match /rentals/{rentalId} {
+      allow get: if isSignedIn() && (resource.data.renterId == request.auth.uid || resource.data.lenderId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.renterId == request.auth.uid || resource.data.lenderId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isEmailVerified() && isValidRental(incoming()) && isValidId(rentalId)
+        && exists(/databases/$(database)/documents/assets/$(incoming().assetId));
+      
+      allow update: if isSignedIn() && isEmailVerified() && (
+        isAdmin() || (
+          // Renter actions: pay, cancel
+          (existing().renterId == request.auth.uid && (
+            (incoming().status == 'paid' && existing().status == 'approved') ||
+            (incoming().status == 'cancelled' && existing().status in ['pending', 'approved']) 
+          ) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+          ||
+          // Lender actions: approve/reject/complete
+          (existing().lenderId == request.auth.uid && (
+            (incoming().status in ['approved', 'rejected'] && existing().status == 'pending') ||
+            (incoming().status == 'completed' && existing().status == 'paid')
+          ) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        )
+      );
+    }
+
+    // --- Notifications ---
+    function isValidNotification(data) {
+      return data.userId is string 
+        && data.title is string 
+        && data.message is string 
+        && data.read is bool
+        && data.type in ['rental_request', 'rental_update', 'return_reminder', 'system']
+        && (!('link' in data) || data.link is string);
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidNotification(incoming()); // Any user can potentially trigger a notification for another
+      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidNotification(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+    }
+
+    // --- Reviews ---
+    function isValidReview(data) {
+      return data.assetId is string
+        && data.reviewerId == request.auth.uid
+        && data.lenderId is string
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && data.comment is string && data.comment.size() <= 1000
+        && data.rentalId is string;
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && isEmailVerified() && isValidReview(incoming()) && isValidId(reviewId)
+        && exists(/databases/$(database)/documents/rentals/$(incoming().rentalId));
+      allow update: if false; // Reviews are immutable for simplicity
+      allow delete: if isAdmin() || (isSignedIn() && existing().reviewerId == request.auth.uid);
+    }
+
+    // Admin collection
+    match /admins/{uid} {
+      allow read: if isSignedIn();
+    }
+  }
+}

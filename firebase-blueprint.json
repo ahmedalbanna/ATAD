@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user in the ATAD platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique identifier for the user." },
+        "email": { "type": "string", "description": "The user's email address." },
+        "displayName": { "type": "string", "description": "The user's full name." },
+        "role": { "type": "string", "enum": ["renter", "lender", "admin"], "description": "The user's role in the system." },
+        "phoneNumber": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "Represents a piece of equipment or machinery for rent.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "dailyRate": { "type": "number" },
+        "location": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "lenderId": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "rented", "maintenance"] },
+        "ratingCount": { "type": "number" },
+        "averageRating": { "type": "number" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "category", "dailyRate", "lenderId", "status"]
+    },
+    "RentalRequest": {
+      "title": "RentalRequest",
+      "description": "Represents a request to rent an asset.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "assetId": { "type": "string" },
+        "renterId": { "type": "string" },
+        "lenderId": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "paid", "completed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["assetId", "renterId", "lenderId", "startDate", "endDate", "totalPrice", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Represents an in-app notification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["rental_request", "rental_update", "return_reminder", "system"] },
+        "link": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "read", "type"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Represents a review for an asset or lender.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "assetId": { "type": "string" },
+        "reviewerId": { "type": "string" },
+        "lenderId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "rentalId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["assetId", "reviewerId", "lenderId", "rating", "rentalId", "comment"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "assets/{assetId}": {
+      "schema": "Asset",
+      "description": "Available machinery and equipment."
+    },
+    "rentals/{rentalId}": {
+      "schema": "RentalRequest",
+      "description": "Rental transactions."
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications."
+    },
+    "reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Reviews and ratings."
+    }
+  }
+}
