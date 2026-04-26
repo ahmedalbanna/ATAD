@@ -11,7 +11,7 @@ import { notifyUser } from '../utils/notifications';
 interface AssetDetailsProps {
   id: string;
   onBack: () => void;
-  onNavigate?: (page: 'home' | 'dashboard' | 'asset') => void;
+  onNavigate?: (page: 'home' | 'dashboard' | 'asset' | 'admin') => void;
 }
 
 export function AssetDetails({ id, onBack, onNavigate }: AssetDetailsProps) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -75,6 +75,13 @@ export function ProfileSettings({ onClose }: { onClose: () => void }) {
           <div className="space-y-2 relative">
              <label className="text-sm font-bold text-white/50">رقم الهاتف</label>
              <input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} type="tel" placeholder="+966 5X XXX XXXX" className="w-full bg-[#141414] border border-white/10 text-white placeholder:text-white/20 rounded-2xl px-4 py-3 focus:outline-none focus:border-yellow-500 text-right" dir="ltr" />
+          </div>
+
+          <div className="space-y-2 relative">
+             <label className="text-sm font-bold text-white/50">نوع الحساب</label>
+             <div className="w-full bg-[#141414]/50 border border-white/5 text-white/40 rounded-2xl px-4 py-3 cursor-not-allowed">
+                {profile?.role === 'lender' ? 'مؤجر (Owner)' : profile?.role === 'admin' ? 'مسؤول (Admin)' : 'مستأجر (Tenant)'}
+             </div>
           </div>
 
           <div className="pt-4">

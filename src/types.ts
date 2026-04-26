@@ -37,6 +37,7 @@ export interface RentalRequest {
   endDate: string;
   totalPrice: number;
   status: 'pending' | 'approved' | 'rejected' | 'paid' | 'completed' | 'cancelled';
+  expirationNotified?: boolean;
   createdAt: any;
   updatedAt?: any;
 }

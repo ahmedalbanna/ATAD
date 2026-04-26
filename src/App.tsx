@@ -12,6 +12,7 @@ import { Navbar } from './components/Navbar';
 import { Home } from './pages/Home';
 import { Dashboard } from './pages/Dashboard';
 import { AssetDetails } from './pages/AssetDetails';
+import { AdminDashboard } from './pages/AdminDashboard';
 import { AnimatePresence, motion } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 
@@ -34,7 +35,7 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState<'home' | 'dashboard' | 'asset'>('home');
+  const [page, setPage] = useState<'home' | 'dashboard' | 'asset' | 'admin'>('home');
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function App() {
     }
   };
 
-  const navigateTo = (p: 'home' | 'dashboard' | 'asset', id?: string) => {
+  const navigateTo = (p: 'home' | 'dashboard' | 'asset' | 'admin', id?: string) => {
     setPage(p);
     if (id) setSelectedAssetId(id);
     else setSelectedAssetId(null);
@@ -123,6 +124,17 @@ export default function App() {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <Dashboard />
+              </motion.div>
+            )}
+
+            {page === 'admin' && profile?.role === 'admin' && (
+              <motion.div
+                key="admin"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <AdminDashboard />
               </motion.div>
             )}
 

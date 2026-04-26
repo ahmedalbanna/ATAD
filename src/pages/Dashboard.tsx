@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, orderBy, onSnapshot } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, orderBy, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { EquipmentAsset, RentalRequest } from '../types';
 import { useAuth } from '../App';
@@ -320,7 +320,13 @@ export function Dashboard() {
   );
 }
 
-function RentalItem({ rental, role, isDetail }: { rental: RentalRequest, role: string, isDetail?: boolean }) {
+interface RentalItemProps {
+  rental: RentalRequest;
+  role: string;
+  isDetail?: boolean;
+}
+
+const RentalItem: React.FC<RentalItemProps> = ({ rental, role, isDetail }) => {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   const updateStatus = async (newStatus: string) => {

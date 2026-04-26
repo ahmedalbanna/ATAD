@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { LogIn, LogOut, LayoutDashboard, Home as HomeIcon, User, Menu, X, Settings, Bell, Check } from 'lucide-react';
+import { LogIn, LogOut, LayoutDashboard, Home as HomeIcon, User, Menu, X, Settings, Bell, Check, ShieldAlert } from 'lucide-react';
 import { auth, googleProvider, db } from '../firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { useAuth } from '../App';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProfileSettings } from './ProfileSettings';
 import { collection, query, where, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import { Notification } from '../types';
 
 interface NavbarProps {
-  onNavigate: (page: 'home' | 'dashboard' | 'asset') => void;
+  onNavigate: (page: 'home' | 'dashboard' | 'asset' | 'admin') => void;
   currentPage: string;
 }
 
@@ -25,7 +26,7 @@ export function Navbar({ onNavigate, currentPage }: NavbarProps) {
      if (!user) return;
      const q = query(collection(db, 'notifications'), where('userId', '==', user.uid));
      return onSnapshot(q, (snap) => {
-        const notifs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+        const notifs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)).sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
         setNotifications(notifs);
         setUnreadCount(notifs.filter(n => !n.read).length);
      });
@@ -55,6 +56,10 @@ export function Navbar({ onNavigate, currentPage }: NavbarProps) {
     { id: 'home', label: 'الرئيسية', icon: HomeIcon },
     { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
   ];
+
+  if (profile?.role === 'admin') {
+    navItems.push({ id: 'admin', label: 'الإدارة', icon: ShieldAlert });
+  }
 
   return (
     <nav className="h-20 border-b border-white/10 sticky top-0 z-50 bg-[#0F0F0F]">
@@ -146,7 +151,9 @@ export function Navbar({ onNavigate, currentPage }: NavbarProps) {
                 </button>
                 <div className="flex flex-col items-end border-r border-white/10 pr-4">
                   <span className="text-xs text-white/50">مرحباً، {user.displayName}</span>
-                  <span className="text-sm font-bold text-yellow-500">{profile?.role === 'lender' ? 'حساب المؤجر' : 'حساب المستأجر'}</span>
+                  <span className="text-sm font-bold text-yellow-500">
+                    {profile?.role === 'lender' ? 'حساب المؤجر' : profile?.role === 'admin' ? 'حساب المسؤول' : 'حساب المستأجر'}
+                  </span>
                 </div>
                 {profile?.photoUrl || user.photoURL ? (
                   <img src={profile?.photoUrl || user.photoURL || ''} alt="Avatar" className="w-10 h-10 rounded-full border border-white/20 object-cover" referrerPolicy="no-referrer" />
