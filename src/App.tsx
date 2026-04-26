@@ -67,6 +67,8 @@ export default function App() {
       email: user.email!,
       displayName: user.displayName || '',
       role,
+      equipmentCategories: [],
+      preferredLocation: '',
       createdAt: serverTimestamp(),
     };
     try {

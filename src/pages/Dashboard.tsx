@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, orderBy, onSnapshot } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { EquipmentAsset, RentalRequest } from '../types';
 import { useAuth } from '../App';
-import { Plus, Package, Clock, CheckCircle, XCircle, MapPin, Search, Loader2, Camera, User, ExternalLink, CreditCard, Edit, Trash2 } from 'lucide-react';
+import { Plus, Package, Clock, CheckCircle, XCircle, MapPin, Search, Loader2, Camera, User, ExternalLink, CreditCard, Edit, Trash2, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { notifyUser } from '../utils/notifications';
-import { format, addDays } from 'date-fns';
+import { format, addDays, differenceInHours } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export function Dashboard() {
   const { user, profile } = useAuth();
@@ -39,6 +40,20 @@ export function Dashboard() {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as RentalRequest));
       setRentals(data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
       setLoading(false);
+
+      // Check for 24-hour expiration for renters
+      if (profile.role === 'renter') {
+        data.forEach(rental => {
+           if (rental.status === 'paid' && rental.endDate) {
+              const hoursLeft = differenceInHours(new Date(rental.endDate), new Date());
+              if (hoursLeft > 0 && hoursLeft <= 24 && !rental.expirationNotified) {
+                 // Notify and mark as notified to avoid spam
+                 notifyUser(user.uid, 'تنبيه انتهاء الإيجار', `الإيجار للطلب #${rental.id.slice(0, 8)} سينتهي خلال 24 ساعة.`, 'system');
+                 updateDoc(doc(db, 'rentals', rental.id), { expirationNotified: true }).catch(console.error);
+              }
+           }
+        });
+      }
     });
 
     return () => {
@@ -268,7 +283,13 @@ export function Dashboard() {
                                   {isBooked && (
                                      <>
                                         <div className="absolute inset-0 bg-yellow-500/10 z-0"></div>
-                                        <span className="text-[10px] text-yellow-500 font-bold z-10">محجوز</span>
+                                        <span className="text-[10px] text-yellow-500 font-bold z-10 text-center leading-tight line-clamp-2">
+                                           {rowRentals.find(r => {
+                                               const start = new Date(r.startDate!);
+                                               const end = new Date(r.endDate!);
+                                               return currentDay >= start && currentDay <= end;
+                                           })?.status === 'paid' ? 'مدفوع' : 'محجوز'}
+                                        </span>
                                      </>
                                   )}
                                </div>
@@ -502,13 +523,33 @@ function AssetForm({ onClose, asset }: { onClose: () => void, asset?: EquipmentA
   const [dailyRate, setDailyRate] = useState(asset?.dailyRate?.toString() || '');
   const [location, setLocation] = useState(asset?.location || '');
   const [imageUrl, setImageUrl] = useState(asset?.imageUrl || '');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImageFile(e.target.files[0]);
+    }
+  };
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     if (!user) return;
     setLoading(true);
     try {
+      let finalImageUrl = imageUrl;
+      
+      if (imageFile) {
+        try {
+          const storageRef = ref(storage, `assets/${user.uid}/${Date.now()}_${imageFile.name}`);
+          await uploadBytes(storageRef, imageFile);
+          finalImageUrl = await getDownloadURL(storageRef);
+        } catch (uploadErr) {
+          console.error("Storage upload failed, fallback to url:", uploadErr);
+          alert("فشل رفع الصورة (تأكد من إعداد Firebase Storage). سيتم استخدام صورة بديلة.");
+        }
+      }
+
       const data = {
         name,
         description,
@@ -520,11 +561,11 @@ function AssetForm({ onClose, asset }: { onClose: () => void, asset?: EquipmentA
       };
 
       if (asset) {
-        await updateDoc(doc(db, 'assets', asset.id), data);
+        await updateDoc(doc(db, 'assets', asset.id), { ...data, imageUrl: finalImageUrl || asset.imageUrl });
       } else {
         await addDoc(collection(db, 'assets'), {
           ...data,
-          imageUrl: imageUrl || `https://picsum.photos/seed/${Math.random()}/800/600`,
+          imageUrl: finalImageUrl || `https://picsum.photos/seed/${Math.random()}/800/600`,
           createdAt: serverTimestamp()
         });
       }
@@ -579,8 +620,16 @@ function AssetForm({ onClose, asset }: { onClose: () => void, asset?: EquipmentA
             </div>
 
             <div className="space-y-2 col-span-2">
-              <label className="text-sm font-bold text-white/50">رابط صورة المعدة (اختياري)</label>
-              <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} type="url" placeholder="https://..." className="w-full bg-[#141414] border border-white/10 text-white placeholder:text-white/20 rounded-2xl px-4 py-4 focus:outline-none focus:border-yellow-500" />
+              <label className="text-sm font-bold text-white/50">صورة المعدة</label>
+              <div className="flex items-center gap-4">
+                <label className="flex-1 cursor-pointer bg-[#141414] border border-white/10 hover:border-yellow-500 text-white placeholder:text-white/20 rounded-2xl px-4 py-4 focus:outline-none transition-colors border-dashed flex items-center justify-center gap-2 text-sm">
+                   <Upload className="w-5 h-5 text-white/40" />
+                   {imageFile ? imageFile.name : 'اختر صورة من جهازك'}
+                   <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                </label>
+                <div className="text-white/20">أو</div>
+                <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} type="url" placeholder="أدخل رابط صورة (اختياري)" className="flex-1 bg-[#141414] border border-white/10 text-white placeholder:text-white/20 rounded-2xl px-4 py-4 focus:outline-none focus:border-yellow-500" />
+              </div>
             </div>
 
             <div className="space-y-2 col-span-2">
